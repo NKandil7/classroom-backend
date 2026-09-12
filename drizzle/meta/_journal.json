@@ -8,6 +8,13 @@
       "when": 1788082005052,
       "tag": "0000_jittery_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789240147212,
+      "tag": "0001_white_sinister_six",
+      "breakpoints": true
     }
   ]
 }
