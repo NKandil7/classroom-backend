@@ -37,18 +37,29 @@ const securityMiddleware = async (req: Request, res: Response, next: NextFunctio
       headers: req.headers,
       method: req.method,
       url: req.originalUrl ?? req.url,
-      socket: {remoteAddress: req.socket.remoteAddress ?? req.ip ?? '0.0.0.0'},
+      socket: { remoteAddress: req.socket.remoteAddress ?? req.ip ?? '0.0.0.0' },
     }
-    
+
     const decision = await client.protect(arcjetRequest);
-    if(decision.isDenied() && decision.reason.isBot()){
-      return res.status(403).json({ error: 'Forbidden', message: 'Automated reqs are not allowed.'});
+    if (decision.isDenied() && decision.reason.isBot()) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Automated requests are not allowed",
+      });
     }
-    if(decision.isDenied() && decision.reason.isShield()){
-      return res.status(403).json({ error: 'Forbidden', message: 'Automated reqs are not allowed.'});
+
+    if (decision.isDenied() && decision.reason.isShield()) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Request blocked by security policy",
+      });
     }
-    if(decision.isDenied() && decision.reason.isRateLimit()){
-      return res.status(403).json({ error: 'Forbidden', message: 'Automated reqs are not allowed.'});
+
+    if (decision.isDenied() && decision.reason.isRateLimit()) {
+      return res.status(429).json({
+        error: "Too Many Requests",
+        message,
+      });
     }
     next();
   } catch (error) {
