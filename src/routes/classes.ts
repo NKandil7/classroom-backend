@@ -1,26 +1,100 @@
 import express from "express";
 import { db } from "../db/index.js";
-import { classes } from "../db/schema/app.js";
+import { classes, subjects } from "../db/schema/app.js";
 import { error } from "node:console";
 import { date } from "better-auth";
+import { and, eq, getTableColumns, ilike, or, sql, desc } from "drizzle-orm";
+import { user } from "../db/schema/auth.js";
 
 const router = express.Router();
 
-router.post("/", async(req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const [ createdClass ] = await db
+    const [createdClass] = await db
       .insert(classes)
-      .values({...req.body, inviteCode: Math.random().toString(36).substring(2,9), schedules: []})
-      .returning({id: classes.id});
-    
-    if(!createdClass) throw Error;
+      .values({ ...req.body, inviteCode: Math.random().toString(36).substring(2, 9), schedules: [] })
+      .returning({ id: classes.id });
 
-    res.status(201).json({data: createdClass});
+    if (!createdClass) throw Error;
+
+    res.status(201).json({ data: createdClass });
   }
-  catch(e) {
+  catch (e) {
     console.error(`Post /classes error ${e}`);
-    res.status(500).json({error: e})
+    res.status(500).json({ error: e })
   }
 });
+
+router.get("/", async (req, res) => {
+  try {
+    const { search, subject, teacher, page = 1, limit = 10 } = req.query;
+    const currentPage = Math.max(1, parseInt(String(page), 10) || 1);
+    const limitPerPage = Math.min(Math.max(1, parseInt(String(limit), 10) || 10), 100); //Max 100 records per page
+
+    const offset = (currentPage - 1) * limitPerPage;
+
+    const filterConditions = [];
+
+    //If search query exists, filter by subject name OR subject code
+    if (search) {
+      filterConditions.push(
+        or(
+          ilike(classes.name, `%${search}%`),
+          ilike(classes.inviteCode, `%${search}%`)
+        )
+      );
+    }
+
+    //If department filter exists, match department name 
+    if (teacher) {
+      filterConditions.push(eq(classes.teacherId, String(teacher)));
+    }
+
+    if (subject) {
+      const subjectId = Number(subject);
+
+      if (!Number.isNaN(subjectId)) {
+        filterConditions.push(eq(classes.subjectId, subjectId));
+      }
+    }
+
+    //Combine all filters using AND if any exist
+    const whereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined;
+
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(classes)
+      .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+      .leftJoin(user, eq(classes.teacherId, user.id))
+      .where(whereClause);
+
+    const totalCount = countResult[0]?.count ?? 0;
+
+    const classesList = await db
+      .select({
+        ...getTableColumns(classes),
+        subject: { ...getTableColumns(subjects) },
+        teacher: { ...getTableColumns(user) }
+      }).from(classes).leftJoin(subjects, eq(classes.subjectId, subjects.id)).leftJoin(user, eq(classes.teacherId, user.id))
+      .where(whereClause)
+      .orderBy(desc(classes.createdAt))
+      .limit(limitPerPage)
+      .offset(offset);
+
+    res.status(200).json({
+      data: classesList,
+      pagination: {
+        page: currentPage,
+        limit: limitPerPage,
+        total: totalCount,
+        totalPage: Math.ceil(totalCount / limitPerPage)
+      }
+    })
+
+  } catch (e) {
+    console.error(`GET /classes error: ${e}`);
+    res.status(500).json({ error: 'Failed to get classes' });
+  }
+})
 
 export default router; 
