@@ -22,7 +22,7 @@ const securityMiddleware = async (req: Request, res: Response, next: NextFunctio
         message = 'User request limit exceeded (10 per min). Please wait';
         break;
       default:
-        limit = 5;
+        limit = 50;
         message = 'Guest request limit exceeded (5 per min). Please sign up for higher limits.'
         break;
     }

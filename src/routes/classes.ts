@@ -1,6 +1,6 @@
 import express from "express";
 import { db } from "../db/index.js";
-import { classes, subjects } from "../db/schema/app.js";
+import { classes, departments, subjects } from "../db/schema/app.js";
 import { error } from "node:console";
 import { date } from "better-auth";
 import { and, eq, getTableColumns, ilike, or, sql, desc } from "drizzle-orm";
@@ -8,6 +8,7 @@ import { user } from "../db/schema/auth.js";
 
 const router = express.Router();
 
+//Get all classes with optional search, filtering and pagination
 router.post("/", async (req, res) => {
   try {
     const [createdClass] = await db
@@ -24,6 +25,36 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: e })
   }
 });
+
+//Get class details with teacher, subject, and department
+router.get("/:id", async (req, res) => {
+  const classId = Number(req.params.id);
+
+  if(!Number.isFinite(classId)) return res.status(400).json({error: 'No class found.'});
+
+  const [classDetails] = await db
+  .select({
+    ...getTableColumns(classes),
+    subject: {
+      ...getTableColumns(subjects),
+    },
+    department: {
+      ...getTableColumns(departments),
+    },
+    teacher: {
+      ...getTableColumns(user),
+    }
+  })
+  .from(classes)
+  .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+  .leftJoin(user, eq(classes.teacherId, user.id))
+  .leftJoin(departments, eq(subjects.departmentId, departments.id))
+  .where(eq(classes.id, classId))
+
+  if(!classDetails) return res.status(404).json({error: "No Class found."})
+
+  res.status(200).json({data: classDetails});
+})
 
 router.get("/", async (req, res) => {
   try {
